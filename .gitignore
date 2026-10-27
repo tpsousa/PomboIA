@@ -18,7 +18,8 @@ target/
 *.iws
 *.iml
 *.ipr
-
+.env.example
+criar-backlog.sh
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

@@ -8,6 +8,14 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate      # o Flyway é quem cria o esquema
+      ddl-auto: validate
   flyway:
     enabled: true
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+
+pombo:
+  security:
+    secrets-enc-key: ${SECRETS_ENC_KEY:/aWyMF5eN1SZnDMezroc8XMAhHcvNHdMjLSGV/Q69ew=}
