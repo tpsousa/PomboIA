@@ -1,9 +1,10 @@
 <div align="center">
 
-# 🕊️ Pombo IA
+# Pombo IA
 
-**Entrega confiável de webhooks, com diagnóstico inteligente de falhas**
-Receba eventos pela API e entregue-os a qualquer URL com assinatura HMAC, retentativas controladas, Dead Letter Topic e histórico auditável. Quando algo falha, a IA explica o motivo e sugere o que fazer.
+Entrega confiável de webhooks, com diagnóstico de falhas por IA.
+
+Receba eventos pela API e entregue-os a qualquer URL com assinatura HMAC, retentativas controladas, Dead Letter Topic e histórico auditável. Quando uma entrega falha, a IA explica o motivo e sugere o que fazer.
 
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.x-6DB33F?logo=springboot&logoColor=white)
@@ -12,12 +13,12 @@ Receba eventos pela API e entregue-os a qualquer URL com assinatura HMAC, retent
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-ready-326CE5?logo=kubernetes&logoColor=white)
 ![IA local](https://img.shields.io/badge/IA-local%20com%20Ollama-8A2BE2)
-[![CI](https://github.com/tpsousa/pombo/actions/workflows/ci.yml/badge.svg)](https://github.com/tpsousa/pombo/actions/workflows/ci.yml)
+[![CI](https://github.com/tpsousa/PomboIA/actions/workflows/ci.yml/badge.svg)](https://github.com/tpsousa/PomboIA/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 </div>
 
-> 🚧 **Em desenvolvimento.** Este README descreve o produto-alvo. A seção [Status e roadmap](#status-e-roadmap) mostra o que já está pronto.
+> Projeto em desenvolvimento. Este README descreve o produto que estou construindo. A seção [Status e roadmap](#status-e-roadmap) mostra o que já está pronto.
 
 ---
 
@@ -25,27 +26,27 @@ Receba eventos pela API e entregue-os a qualquer URL com assinatura HMAC, retent
 
 Notificar outro sistema via webhook parece simples, até que o destino fica fora do ar, responde devagar ou recebe a mesma notificação duas vezes. Fazer a chamada HTTP dentro da requisição da API ainda acopla a sua disponibilidade à do cliente.
 
-E quando a entrega falha, o desenvolvedor recebe uma lista de códigos (`401`, `503`, `TIMEOUT`) e precisa deduzir sozinho o que aconteceu.
+Quando a entrega falha, o desenvolvedor recebe uma lista de códigos (`401`, `503`, `TIMEOUT`) e precisa deduzir sozinho o que aconteceu.
 
-O **Pombo IA** resolve as duas partes:
+O Pombo IA ataca as duas pontas.
 
-**Entrega confiável**
-- ✅ Aceita o evento rapidamente (`202 Accepted`) e entrega **de forma assíncrona**
-- ✅ **Retentativas** com backoff exponencial e limite definido
-- ✅ **Dead Letter Topic** para entregas esgotadas e **reenvio manual**
-- ✅ **Assinatura HMAC-SHA256** em cada entrega, com proteção anti-replay
-- ✅ **Histórico completo** de tentativas (status HTTP, duração, erro)
-- ✅ **Transactional Outbox**: nenhum evento aceito é perdido entre o banco e o Kafka
-- ✅ Proteção contra **SSRF** no cadastro e na entrega
+Na entrega:
+- Aceita o evento rapidamente (`202 Accepted`) e entrega de forma assíncrona.
+- Faz retentativas com backoff exponencial e limite definido.
+- Envia para um Dead Letter Topic as entregas esgotadas e permite o reenvio manual.
+- Assina cada entrega com HMAC-SHA256, com proteção anti-replay.
+- Guarda o histórico completo de tentativas (status HTTP, duração, erro).
+- Usa Transactional Outbox, para que nenhum evento aceito se perca entre o banco e o Kafka.
+- Protege o cadastro e a entrega contra SSRF.
 
-**Diagnóstico com IA**
-- 🧠 Explica em linguagem natural **por que** uma entrega falhou e sugere a ação
-- 🧠 **Regras primeiro, modelo depois**: casos óbvios nunca chamam um modelo
-- 🧠 Funciona com **modelo local (Ollama)**, sem API paga e sem enviar dados a terceiros
-- 🧠 Agente via **MCP** para investigar entregas por conversa
-- 🧠 Tudo **opcional**: com a IA desligada, o Pombo funciona normalmente
+No diagnóstico:
+- Explica em linguagem natural por que uma entrega falhou e sugere o que fazer.
+- Resolve os casos óbvios com regras e só chama o modelo quando elas não bastam.
+- Funciona com modelo local (Ollama), sem API paga e sem enviar dados a terceiros.
+- Expõe um servidor MCP para investigar entregas por conversa.
+- É opcional: com a IA desligada, o Pombo funciona normalmente.
 
-> Garantia de entrega: **at-least-once**. O destinatário deve deduplicar por `X-Pombo-Delivery-Id`, que é estável em todas as tentativas.
+A garantia de entrega é at-least-once. O destinatário deve deduplicar por `X-Pombo-Delivery-Id`, que é o mesmo em todas as tentativas.
 
 ## Como funciona
 
@@ -67,11 +68,11 @@ flowchart LR
     INS -.->|opcional| LLM[Modelo local<br/>Ollama]
 ```
 
-1. `POST /events` grava **evento, entregas e mensagens de outbox na mesma transação** e responde `202`.
+1. `POST /events` grava o evento, as entregas e as mensagens de outbox na mesma transação e responde `202`.
 2. O publicador do outbox envia as mensagens ao Kafka (`acks=all`, producer idempotente).
 3. O consumidor assume a entrega com uma transição de estado condicional (idempotência), faz o `POST` assinado e registra a tentativa.
-4. Erro temporário → retry topic com backoff. Erro permanente (`4xx`) → `FAILED`. Tentativas esgotadas → `DEAD` + DLT.
-5. Em qualquer entrega com falha, `GET /deliveries/{id}/diagnosis` devolve a explicação.
+4. Erro temporário vai para um retry topic com backoff. Erro permanente (`4xx`) marca a entrega como `FAILED`. Esgotadas as tentativas, ela vira `DEAD` e vai para o DLT.
+5. Para qualquer entrega com falha, `GET /deliveries/{id}/diagnosis` devolve a explicação.
 
 ### Estados de uma entrega
 
@@ -90,20 +91,20 @@ stateDiagram-v2
 
 ---
 
-## 🧠 Pombo IA: como a IA funciona
+## Como a IA funciona
 
-### Por que IA aqui, e o que ela não faz
+### O papel da IA
 
-A IA existe para resolver uma dor concreta: **traduzir o histórico técnico de uma entrega falha em uma explicação acionável**. Ela **não** participa do caminho de entrega: não decide retentativas, não altera estados e não vê o conteúdo dos eventos.
+A IA entra para resolver uma dor concreta: transformar o histórico técnico de uma entrega com falha em uma explicação que dá para agir em cima. Ela fica fora do caminho de entrega. Não decide retentativas, não altera estados e não vê o conteúdo dos eventos.
 
 | A IA faz | A IA não faz |
 |---|---|
 | Classifica a causa provável da falha | Decidir se uma entrega deve ser retentada |
 | Explica em português e sugere a ação | Ler ou enviar o payload dos eventos |
 | Responde perguntas sobre entregas (via MCP) | Reenviar entregas sem confirmação humana |
-| Resume o estado operacional | Detectar anomalias (isso é feito com métricas e alertas) |
+| Resume o estado operacional | Detectar anomalias (isso fica com métricas e alertas) |
 
-### Arquitetura: regras primeiro, modelo depois
+### Fluxo do diagnóstico
 
 ```mermaid
 flowchart TD
@@ -120,7 +121,7 @@ flowchart TD
     SAVE --> RES
 ```
 
-O módulo `com.pombo.insights` fica **isolado**: não altera o fluxo de entrega e só lê o histórico. Se ele falhar, nada mais é afetado.
+O módulo `com.pombo.insights` é isolado: só lê o histórico e não mexe no fluxo de entrega. Se ele falhar, o resto do sistema continua funcionando.
 
 ```
 insights/
@@ -129,7 +130,7 @@ insights/
 ├── OllamaDiagnosisProvider        ← modelo local
 ├── HostedApiDiagnosisProvider     ← opcional, API externa
 ├── DiagnosisService               ← cache, fallback, métricas
-├── DiagnosisInput                 ← somente metadados (ver "Privacidade")
+├── DiagnosisInput                 ← somente metadados (ver "Privacidade e segurança")
 └── mcp/                           ← servidor MCP (ferramentas somente leitura)
 ```
 
@@ -161,15 +162,15 @@ Resolve os casos mais comuns de forma determinística e instantânea:
 | `400` / `422` com mensagem no corpo da resposta | `VALIDATION_REJECTED` | Média (o modelo ajuda a interpretar) |
 | Padrão misto ou sem correspondência | `UNKNOWN` | Baixa (vai para o modelo, se habilitado) |
 
-### Onde o modelo realmente agrega
+### Quando o modelo entra
 
-O modelo só entra quando as regras não bastam:
+O modelo só é chamado quando as regras não bastam:
 
-1. **Interpretar a resposta do destinatário.** Um `400` com `"invalid signature: timestamp too old"` vira *"o receptor rejeitou a assinatura por diferença de relógio; verifique a sincronização de horário"*.
-2. **Explicar padrões mistos** (por exemplo, `503` seguido de `timeout` e depois `401`).
-3. **Redigir** a explicação e a ação sugerida de forma clara.
+1. Para interpretar a resposta do destinatário. Um `400` com `"invalid signature: timestamp too old"` vira algo como "o receptor rejeitou a assinatura por diferença de relógio; verifique a sincronização de horário".
+2. Para explicar padrões mistos, por exemplo `503` seguido de `timeout` e depois `401`.
+3. Para redigir a explicação e a ação sugerida de forma clara.
 
-A saída do modelo é **sempre estruturada** (JSON) e **validada**: a categoria precisa pertencer à lista fixa e os campos têm tamanho máximo. Resposta inválida, vazia ou fora do prazo faz o sistema usar o resultado das regras. O modelo nunca é a única fonte de verdade.
+A saída do modelo é sempre JSON e é validada: a categoria precisa estar na lista fixa e os campos têm tamanho máximo. Se a resposta vier inválida, vazia ou fora do prazo, o sistema usa o resultado das regras. O modelo nunca é a única fonte de verdade.
 
 ### Contrato da API
 
@@ -195,25 +196,25 @@ A saída do modelo é **sempre estruturada** (JSON) e **validada**: a categoria 
 | `LLM` | Explicação gerada pelo modelo (campo `model` preenchido) |
 | `RULES_FALLBACK` | O modelo falhou ou estava indisponível; resultado das regras |
 
-Códigos: `200`, `404` (entrega inexistente ou de outro usuário), `409` (entrega sem falha para diagnosticar), `503` (recurso desabilitado).
+Códigos de resposta: `200`, `404` (entrega inexistente ou de outro usuário), `409` (entrega sem falha para diagnosticar) e `503` (recurso desabilitado).
 
 ### Cache
 
-Diagnósticos ficam na tabela `delivery_diagnoses`, com chave `(delivery_id, attempt_count)`. Uma entrega finalizada não muda, então o diagnóstico é calculado uma vez. Se surgir uma nova tentativa, o cache daquele estado deixa de valer. Isso reduz custo, latência e carga no modelo.
+Os diagnósticos ficam na tabela `delivery_diagnoses`, com chave `(delivery_id, attempt_count)`. Uma entrega finalizada não muda, então o diagnóstico é calculado uma vez. Se surgir uma nova tentativa, o cache daquele estado deixa de valer. Isso reduz custo, latência e carga no modelo.
 
 ### Privacidade e segurança
 
 | Risco | Decisão |
 |---|---|
-| **Vazamento de dados do cliente** | O modelo recebe **somente metadados**: status, contagem de tentativas, códigos HTTP, tempos, códigos de erro e o *host* do destino. **Nunca** o payload do evento, nem o segredo, nem o caminho e a query da URL. |
-| **Trecho da resposta do destinatário** | Desligado por padrão (`include-response-snippet: false`). Quando ligado, é truncado, sanitizado e tratado como **dado não confiável**. |
-| **Prompt injection** | O texto vindo de servidores externos fica em um bloco delimitado e marcado como dado. O modelo não executa ações, e a saída é validada contra um esquema fixo. |
-| **Isolamento entre usuários** | O diagnóstico usa o usuário autenticado. Nenhuma ferramenta recebe `userId` escolhido pelo modelo. |
-| **Custo e abuso** | Limite de requisições por usuário, timeout curto e cache. |
-| **Dependência do modelo** | Recurso desligado por padrão, com *fallback* para regras em qualquer falha. |
-| **Chaves de API** | Quando houver provedor externo, a chave vem de variável de ambiente ou do Secrets Manager. Nunca do repositório. |
+| Vazamento de dados do cliente | O modelo recebe somente metadados: status, contagem de tentativas, códigos HTTP, tempos, códigos de erro e o host do destino. Nunca recebe o payload do evento, o segredo, nem o caminho e a query da URL. |
+| Trecho da resposta do destinatário | Desligado por padrão (`include-response-snippet: false`). Quando ligado, é truncado, sanitizado e tratado como dado não confiável. |
+| Prompt injection | O texto vindo de servidores externos fica em um bloco delimitado e marcado como dado. O modelo não executa ações, e a saída é validada contra um esquema fixo. |
+| Isolamento entre usuários | O diagnóstico usa o usuário autenticado. Nenhuma ferramenta recebe `userId` escolhido pelo modelo. |
+| Custo e abuso | Limite de requisições por usuário, timeout curto e cache. |
+| Dependência do modelo | Recurso desligado por padrão, com fallback para regras em qualquer falha. |
+| Chaves de API | Quando houver provedor externo, a chave vem de variável de ambiente ou do Secrets Manager, nunca do repositório. |
 
-### Modelo local com Ollama (sem custo de API)
+### Modelo local com Ollama
 
 O Ollama roda na sua máquina, sem chave e sem cobrança, e nenhum dado sai do ambiente. Ele entra no Compose como perfil opcional:
 
@@ -232,34 +233,34 @@ pombo:
       model: <modelo>
 ```
 
-Modelos pequenos bastam para classificar falhas e redigir a explicação. Consulte a biblioteca do Ollama para ver as opções disponíveis. O consumo de memória e CPU depende do modelo escolhido, então a IA local **não** faz parte do perfil econômico da AWS: lá o provedor é `rules`.
+Um modelo pequeno basta para classificar falhas e redigir a explicação. Consulte a biblioteca do Ollama para ver as opções. O consumo de memória e CPU depende do modelo escolhido, por isso a IA local não faz parte do perfil econômico da AWS: lá o provedor é `rules`.
 
 ### Agente via MCP
 
-O Pombo IA expõe um servidor **MCP** para que um assistente investigue entregas por conversa ("por que o pedido 1042 não chegou?"). Ele automatiza o roteiro do [runbook](docs/runbook.md).
+O Pombo IA expõe um servidor MCP para que um assistente investigue entregas por conversa ("por que o pedido 1042 não chegou?"). Ele automatiza o roteiro do [runbook](docs/runbook.md).
 
 | Ferramenta | Tipo | Ação |
 |---|---|---|
 | `get_delivery(id)` | Leitura | Estado e tentativas da entrega |
 | `list_failed_deliveries(...)` | Leitura | Entregas com falha recentes do usuário |
-| `diagnose_delivery(id)` | Leitura | Diagnóstico da §anterior |
+| `diagnose_delivery(id)` | Leitura | Diagnóstico descrito na seção anterior |
 | `get_outbox_stats()` | Leitura (`ADMIN`) | Fila pendente e idade da mais antiga |
 | `propose_redeliver(id)` | Proposta | Prepara o reenvio e devolve um código de confirmação |
-| `confirm_redeliver(code)` | Escrita | Executa o reenvio **somente** após confirmação humana explícita |
+| `confirm_redeliver(code)` | Escrita | Executa o reenvio somente após confirmação humana explícita |
 
 Regras do servidor MCP:
-- Usa o **JWT do usuário**: cada ferramenta enxerga apenas os dados dele.
+- Usa o JWT do usuário, então cada ferramenta enxerga apenas os dados dele.
 - Nenhuma ferramenta recebe `userId` como parâmetro.
 - Ações de escrita exigem um segundo passo com código de curta duração.
 - Todas as chamadas são registradas em log e métrica.
 
 ### Qualidade da IA
 
-Para saber se o diagnóstico é bom (e comparar provedores), o projeto terá um **conjunto de casos de avaliação** em `src/test/resources/insights/cases.json`: históricos de entrega sintéticos com a categoria esperada.
+Para saber se o diagnóstico é bom, e para comparar provedores, o projeto terá um conjunto de casos de avaliação em `src/test/resources/insights/cases.json`: históricos de entrega sintéticos com a categoria esperada.
 
-- **Motor de regras:** testes unitários exaustivos, sem modelo.
-- **Provider de modelo:** testado com um *stub*, validando a validação de JSON, o *fallback* e o timeout. **O CI nunca chama um modelo real.**
-- **Avaliação manual:** um comando executa os casos contra o Ollama e mostra a taxa de acerto por categoria.
+- Motor de regras: testes unitários exaustivos, sem modelo.
+- Provider de modelo: testado com um stub, validando a checagem de JSON, o fallback e o timeout. O CI nunca chama um modelo real.
+- Avaliação manual: um comando executa os casos contra o Ollama e mostra a taxa de acerto por categoria.
 
 ### Observabilidade da IA
 
@@ -287,11 +288,11 @@ Para saber se o diagnóstico é bom (e comparar provedores), o projeto terá um 
 
 ## Executando localmente
 
-**Pré-requisitos:** Docker 24+ e Docker Compose v2.
+Pré-requisitos: Docker 24+ e Docker Compose v2.
 
 ```bash
-git clone https://github.com/tpsousa/pombo.git
-cd pombo
+git clone https://github.com/tpsousa/PomboIA.git
+cd PomboIA
 cp .env.example .env          # defina DB_PASSWORD, JWT_SECRET e SECRETS_ENC_KEY
 docker compose up -d --build
 ```
@@ -363,11 +364,11 @@ Rejeite timestamps com mais de 5 minutos de diferença e deduplique por `X-Pombo
 | POST | `/api/v1/events` | Enviar evento (`202`, suporta `Idempotency-Key`) |
 | GET | `/api/v1/events` · `/events/{id}` | Consultar eventos |
 | GET | `/api/v1/deliveries` · `/deliveries/{id}` | Entregas e histórico de tentativas |
-| GET | `/api/v1/deliveries/{id}/diagnosis` | 🧠 Diagnóstico da falha |
+| GET | `/api/v1/deliveries/{id}/diagnosis` | Diagnóstico da falha |
 | POST | `/api/v1/deliveries/{id}/redeliver` | Reenviar entrega `FAILED`/`DEAD` |
 | GET | `/api/v1/admin/stats` | Indicadores operacionais (`ADMIN`) |
 
-Erros seguem o padrão **RFC 7807** (`application/problem+json`). Contratos completos e exemplos em [`docs/SPEC.md`](docs/SPEC.md#8-api-rest).
+Erros seguem o padrão RFC 7807 (`application/problem+json`). Contratos completos e exemplos em [`docs/SPEC.md`](docs/SPEC.md#8-api-rest).
 
 ## Testes
 
@@ -375,11 +376,11 @@ Erros seguem o padrão **RFC 7807** (`application/problem+json`). Contratos comp
 ./mvnw test      # unitários e integração (requer Docker para o Testcontainers)
 ```
 
-Cobertura focada em fluxos críticos: sucesso, retry até sucesso, `DEAD` com DLT, erro permanente, **mensagem Kafka duplicada**, **Kafka indisponível durante o envio**, isolamento entre usuários, proteção SSRF e o comportamento do diagnóstico (regras, *fallback* e validação de saída do modelo).
+A cobertura é focada nos fluxos críticos: sucesso, retry até sucesso, `DEAD` com DLT, erro permanente, mensagem Kafka duplicada, Kafka indisponível durante o envio, isolamento entre usuários, proteção SSRF e o comportamento do diagnóstico (regras, fallback e validação da saída do modelo).
 
 ## Kubernetes
 
-Manifests em [`k8s/`](k8s) com startup/liveness/readiness probes, requests/limits e rolling update sem indisponibilidade.
+Os manifests ficam em [`k8s/`](k8s), com startup/liveness/readiness probes, requests/limits e rolling update sem indisponibilidade.
 
 ```bash
 kind create cluster --name pombo
@@ -388,32 +389,32 @@ kubectl apply -f k8s/
 kubectl port-forward svc/pombo 8080:80
 ```
 
-Decisão importante: a **readiness** considera o PostgreSQL, mas **não o Kafka** nem o modelo de IA. Com eles fora, a API continua aceitando eventos. O estado de cada dependência é monitorado por métricas e alertas, não por probes.
+Uma decisão que vale explicar: a readiness considera o PostgreSQL, mas não o Kafka nem o modelo de IA. Com eles fora do ar, a API continua aceitando eventos. O estado de cada dependência é acompanhado por métricas e alertas, não por probes.
 
 ## AWS
 
 | Perfil | Composição | Uso |
 |---|---|---|
-| **Econômico** | ECR, EC2 com Compose, SSM Parameter Store, CloudWatch, IAM (OIDC) | Demonstração padrão. IA em modo `rules` |
-| **Completo (efêmero)** | EKS, RDS, MSK, ALB via Terraform | Demonstrações pontuais, seguido de `terraform destroy` |
+| Econômico | ECR, EC2 com Compose, SSM Parameter Store, CloudWatch, IAM (OIDC) | Demonstração padrão. IA em modo `rules` |
+| Completo (efêmero) | EKS, RDS, MSK, ALB via Terraform | Demonstrações pontuais, seguido de `terraform destroy` |
 
-A infraestrutura é definida em [`terraform/`](terraform). O deploy via GitHub Actions usa **OIDC**, sem chaves AWS permanentes no repositório.
+A infraestrutura é definida em [`terraform/`](terraform). O deploy via GitHub Actions usa OIDC, sem chaves AWS permanentes no repositório.
 
-> ⚠️ EKS, MSK, RDS, NAT Gateway e load balancers geram custo mesmo ociosos. Configure AWS Budgets antes do primeiro `apply` e destrua o ambiente completo após o uso. A IA local (Ollama) não roda no perfil econômico.
+> Atenção: EKS, MSK, RDS, NAT Gateway e load balancers geram custo mesmo ociosos. Configure o AWS Budgets antes do primeiro `apply` e destrua o ambiente completo após o uso. A IA local (Ollama) não roda no perfil econômico.
 
 ## Observabilidade
 
-- Logs JSON com `requestId`, `deliveryId` e `attempt`
-- `/actuator/health/liveness`, `/actuator/health/readiness` e `/actuator/prometheus`
-- Métricas: tentativas por resultado, duração das entregas, entregas `DEAD`, mensagens pendentes no outbox e idade da mais antiga, lag do consumidor Kafka, métricas de diagnóstico
-- Dashboard Grafana opcional em [`observability/`](observability)
+- Logs JSON com `requestId`, `deliveryId` e `attempt`.
+- `/actuator/health/liveness`, `/actuator/health/readiness` e `/actuator/prometheus`.
+- Métricas de tentativas por resultado, duração das entregas, entregas `DEAD`, mensagens pendentes no outbox e idade da mais antiga, lag do consumidor Kafka e métricas de diagnóstico.
+- Dashboard Grafana opcional em [`observability/`](observability).
 
-Procedimento para investigar uma entrega "aceita mas não concluída" em [`docs/runbook.md`](docs/runbook.md).
+O procedimento para investigar uma entrega "aceita mas não concluída" está em [`docs/runbook.md`](docs/runbook.md).
 
 ## Estrutura do repositório
 
 ```
-pombo/
+PomboIA/
 ├── src/main/java/com/pombo/   auth · user · endpoint · event · delivery · outbox · insights · shared
 ├── src/main/resources/db/migration/
 ├── src/test/
@@ -427,7 +428,7 @@ pombo/
 └── docker-compose.yml
 ```
 
-> O nome técnico (pacote `com.pombo`, cabeçalhos `X-Pombo-*`, tópicos `pombo.*`) permanece **pombo**. **Pombo IA** é o nome do produto.
+> O nome técnico (pacote `com.pombo`, cabeçalhos `X-Pombo-*`, tópicos `pombo.*`) continua sendo `pombo`. Pombo IA é o nome do produto e do repositório.
 
 ## Documentação
 
@@ -439,38 +440,36 @@ pombo/
 
 ## Status e roadmap
 
-Legenda: ✅ concluído · 🚧 em andamento · ⬜ planejado
-
 | Fase | Descrição | Status |
 |---|---|---|
-| 1 | Domínio, entidades, migrations e banco local | 🚧 falta fechar os testes de integração |
-| 2 | API REST e persistência (destinos, eventos, entregas) | 🚧 destinos prontos; eventos em seguida |
-| 3 | Segurança (JWT, papéis, SSRF) | ⬜ |
-| 4 | Kafka: outbox, consumidor, retry e DLT | ⬜ |
-| 5 | Testes e cenários de falha (**MVP**) | ⬜ |
-| 6 | Docker e ambiente local completo | ⬜ |
-| 7 | Health checks e observabilidade | ⬜ |
-| 8 | CI/CD | ⬜ |
-| 9 | Kubernetes local | ⬜ |
-| 10 | AWS e Terraform | ⬜ |
-| 11 | Testes de carga e documentação final | ⬜ |
-| **12** | 🧠 **Diagnóstico por regras**: módulo `insights`, endpoint, cache e métricas | ⬜ |
-| **13** | 🧠 **Provedor de IA local** (Ollama), validação de saída e conjunto de avaliação | ⬜ |
-| **14** | 🧠 **Servidor MCP** com ferramentas de leitura e reenvio com confirmação | ⬜ |
+| 1 | Domínio, entidades, migrations e banco local | Em andamento: falta fechar os testes de integração |
+| 2 | API REST e persistência (destinos, eventos, entregas) | Em andamento: destinos prontos, eventos em seguida |
+| 3 | Segurança (JWT, papéis, SSRF) | Planejado |
+| 4 | Kafka: outbox, consumidor, retry e DLT | Planejado |
+| 5 | Testes e cenários de falha (MVP) | Planejado |
+| 6 | Docker e ambiente local completo | Planejado |
+| 7 | Health checks e observabilidade | Planejado |
+| 8 | CI/CD | Planejado |
+| 9 | Kubernetes local | Planejado |
+| 10 | AWS e Terraform | Planejado |
+| 11 | Testes de carga e documentação final | Planejado |
+| 12 | Diagnóstico por regras: módulo `insights`, endpoint, cache e métricas | Planejado |
+| 13 | Provedor de IA local (Ollama), validação de saída e conjunto de avaliação | Planejado |
+| 14 | Servidor MCP com ferramentas de leitura e reenvio com confirmação | Planejado |
 
-As fases 12 a 14 começam **depois do MVP** (fase 5), porque dependem de entregas reais e do histórico de tentativas.
+As fases 12 a 14 começam depois do MVP (fase 5), porque dependem de entregas reais e do histórico de tentativas.
 
 O acompanhamento detalhado está no [GitHub Projects](https://github.com/users/tpsousa/projects/1).
 
 ## Limitações conhecidas
 
-- Entrega **at-least-once**, sem ordenação entre eventos de um mesmo destino.
-- Kafka e PostgreSQL de nó único em desenvolvimento e no perfil econômico.
-- Sem multi-tenancy, rate limiting por destino ou revogação de JWT antes da expiração.
-- O diagnóstico por modelo depende da qualidade do modelo local escolhido e pode errar. Por isso o resultado indica a origem (`source`) e a confiança.
+- A entrega é at-least-once, sem ordenação entre eventos de um mesmo destino.
+- Kafka e PostgreSQL rodam em nó único em desenvolvimento e no perfil econômico.
+- Não há multi-tenancy, rate limiting por destino nem revogação de JWT antes da expiração.
+- O diagnóstico por modelo depende da qualidade do modelo local escolhido e pode errar. Por isso o resultado informa a origem (`source`) e a confiança.
 - A IA local exige memória e CPU adicionais e não está prevista no perfil econômico da AWS.
 
-Lista completa e evoluções planejadas em [`docs/SPEC.md`](docs/SPEC.md#22-limitações-conhecidas).
+A lista completa e as evoluções planejadas estão em [`docs/SPEC.md`](docs/SPEC.md#22-limitações-conhecidas).
 
 ## Licença
 
